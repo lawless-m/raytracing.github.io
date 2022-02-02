@@ -37,10 +37,10 @@ end
 
 function scatter(d::Dielectric, ray::Ray, hit::Hit) 
 
-    function reflectance(cosine, ratio)
-        r = ((1-ratio) / (1+ratio))^2
-        r + (1-r)*(1 - cosine)^5
-    end
+	function reflectance(cosine, ratio)
+		r = ((1-ratio) / (1+ratio))^2
+		r + (1-r)*(1 - cosine)^5
+	end
 
 	refraction_ratio = hit.front_face ? (1.0/d.ir) : d.ir
 

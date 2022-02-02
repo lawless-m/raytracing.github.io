@@ -4,22 +4,20 @@ module ShirleyRayTracer
 using StaticArrays
 using LinearAlgebra
 
-
-const Vec3 = SArray{Tuple{3}, Float64, 1, 3}
-const Point3 = SArray{Tuple{3}, Float64, 1, 3}
-const Color = SArray{Tuple{3}, Float64, 1, 3}
+const Vec3 = SVector{3, Float64}
+const Point3 = SVector{3, Float64}
+const Color = SVector{3, Float64}
 const Scanline = Vector{Color}
 
 include("PPM.jl")
 
 export Scene, Camera, Point3, Vec3, Color, Scanline
 export trace_scanline, render
-export magnitude, unit_vector, add!, randf
+export magnitude, add!, randf
 
 magnitude(x,y) = sqrt(x^2 + y^2)
 magnitude(x,y,z) = sqrt(x^2 + y^2 + z^2)
 magnitude(v) = magnitude(v...)
-unit_vector(v) = v / magnitude(v)
 
 randf(fmin, fmax) = fmin + (fmax-fmin)*rand()
 near_zero(v) = v.x < 1e-8 && v.y < 1e-8 && v.z < 1e-8
@@ -40,7 +38,7 @@ function random_in_unit_sphere()
 	Point3(x,y,z)
 end
 
-random_unit_vector() = unit_vector(random_in_unit_sphere())
+random_unit_vector() = normalize(random_in_unit_sphere())
 
 function random_in_hemisphere(normal) 
     in_unit_sphere = random_in_unit_sphere()
@@ -59,7 +57,7 @@ struct Ray
 	direction::Vec3
 	udirection::Vec3
 	tm::Float64
-	Ray(o, d, m) = new(o, d, unit_vector(d), m)
+	Ray(o, d, m) = new(o, d, normalize(d), m)
 	Ray(o, d) = Ray(o, d, 0)
 	Ray() = new(Vec3(Inf, Inf, Inf), Vec3(Inf, Inf, Inf)) # a type stable sentinel instead of using nothing
 end
@@ -81,8 +79,8 @@ struct Camera
 		viewport_height = 2.0 * tan(deg2rad(vfov)/2)
 		viewport_width = aspect_ratio * viewport_height
 
-		w = unit_vector(lookfrom - lookat)
-		u = unit_vector(cross(vup, w))
+		w = normalize(lookfrom - lookat)
+		u = normalize(cross(vup, w))
 		v = cross(w, u)
 
 		origin = lookfrom

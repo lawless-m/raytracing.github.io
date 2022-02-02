@@ -13,14 +13,14 @@ struct Hit
 	material::Material
 	t::Float64
 	front_face::Bool
-    function Hit(s::Sphere, t, ray)
-        p = at(ray, t)
-        outward_normal = (p - s.center) / s.radius
-        ff = dot(ray.direction, outward_normal)
-        norm = ff < 0 ? outward_normal : -outward_normal
-        new(p, norm, s.material, t, ff < 0)
-    end
-    Hit() = new()
+	function Hit(s::Sphere, t, ray)
+		p = at(ray, t)
+		outward_normal = (p - s.center) / s.radius
+		ff = dot(ray.direction, outward_normal)
+		norm = ff < 0 ? outward_normal : -outward_normal
+		new(p, norm, s.material, t, ff < 0)
+	end
+	Hit() = new()
 end
 
 function trace(sphere::Sphere, ray::Ray, t_min, t_max)
