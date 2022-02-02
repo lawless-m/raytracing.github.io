@@ -1,4 +1,6 @@
 
+module RayTracer
+
 using StaticArrays
 using LinearAlgebra
 
@@ -139,28 +141,34 @@ struct Hit
 	material::Material
 	t::Float64
 	front_face::Bool
-	function Hit(p, t, ray, outward_normal, material) # sphere
+	function Hit(s::Sphere, t, ray)
+		p = at(ray, t)
+		outward_normal = (p - s.center) / s.radius
 		ff = dot(ray.direction, outward_normal)
 		norm = ff < 0 ? outward_normal : -outward_normal
-		new(p, norm, material, t, ff < 0)
+		new(p, norm, s.material, t, ff < 0)
 	end
 	Hit() = new()
 end
 
 function trace(scene::Scene, ray::Ray, t_min, t_max)
 	closest_t = t_max
-	nearest = Hit()
+	local struck::Hitable
 	
 	for hitable in scene.hitables
-		hit = trace(hitable, ray, t_min, closest_t)
-		if isdefined(hit, :material)
-			closest_t = hit.t
-			nearest = hit
+		t = trace(hitable, ray, t_min, closest_t)
+		if t >= 0
+			closest_t = t
+			struck = hitable
 		end
 	end
-	nearest
+	
+	if @isdefined struck
+		Hit(struck, closest_t, ray)
+	else
+		Hit()
+	end
 end
-
 
 struct Lambertian <: Material
 	albedo::Color
@@ -196,7 +204,7 @@ end
 
 function reflectance(cosine, ref_idx)
 	r0 = ((1-ref_idx) / (1+ref_idx))^2
-        r0 + (1-r0)*(1 - cosine)^5
+    r0 + (1-r0)*(1 - cosine)^5
 end
 
 function scatter(d::Dielectric, ray::Ray, hit::Hit) 
@@ -229,7 +237,7 @@ function trace(sphere::Sphere, ray::Ray, t_min, t_max)
 	c = magnitude(oc)^2 - sphere.radius^2
 	discriminant = half_b^2 - a*c
 	if discriminant < 0
-		return Hit()
+		return -1
 	end
 
 	sqrtd = sqrt(discriminant)
@@ -237,13 +245,11 @@ function trace(sphere::Sphere, ray::Ray, t_min, t_max)
 	if root < t_min || t_max < root
 		root = (-half_b + sqrtd) / a
 		if root < t_min || t_max < root
-			return Hit()
+			return -1
 		end
 	end
 
-	p = at(ray, root)
-
-	Hit(p, root, ray, (p - sphere.center) / sphere.radius, sphere.material)
+	root
 end
 
 function ray_color(scene::Scene, ray::Ray, depth)::Tuple{Float64, Float64, Float64}
@@ -303,7 +309,7 @@ function trace_scanline(world, y, samples, width, height, max_depth)
 		for i in 1:samples
 			(r,g,b) = (r,g,b) .+ ray_color(world, get_ray(world, (x + rand()) / width, (y + rand()) / height), max_depth)
 		end
-		scanline[x] = Color(r/samples, g/samples, b/samples)
+		@inbounds scanline[x] = Color(r/samples, g/samples, b/samples)
 	end
 	scanline
 end
@@ -322,8 +328,9 @@ function main(io; image_width=1200, aspect_ratio=16/9, samples_per_pixel=10, max
 
 	scanlines = Vector{Scanline}(undef, image_height)
 
-	Threads.@threads for y in 1:image_height
-		scanlines[y] = trace_scanline(world, y, samples_per_pixel, image_width, image_height, max_depth)
+	#Threads.@threads 
+	for y in 1:image_height
+		@inbounds scanlines[y] = trace_scanline(world, y, samples_per_pixel, image_width, image_height, max_depth)
     end
 
 	write_ppm(io, scanlines, image_width, image_height)
