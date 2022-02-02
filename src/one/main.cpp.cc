@@ -48521,7 +48521,6 @@ bool sphere::hit(const ray& r, double t_min, double t_max, hit_record& rec) cons
 color ray_color(const ray& r, const hittable& world, int depth) {
     hit_record rec;
 
-
     if (depth <= 0)
         return color(0,0,0);
 
@@ -48588,19 +48587,13 @@ hittable_list random_scene() {
 
 int main() {
 
-
-
     const auto aspect_ratio = 16.0 / 9.0;
-    const int image_width = 1200;
-    const int image_height = static_cast<int>(image_width / aspect_ratio);
-    const int samples_per_pixel = 10;
+    const int image_width = 12;
+    const int image_height = 2 ;//static_cast<int>(image_width / aspect_ratio);
+    const int samples_per_pixel = 1;
     const int max_depth = 50;
 
-
-
     auto world = random_scene();
-
-
 
     point3 lookfrom(13,2,3);
     point3 lookat(0,0,0);
@@ -48609,8 +48602,6 @@ int main() {
     auto aperture = 0.1;
 
     camera cam(lookfrom, lookat, vup, 20, aspect_ratio, aperture, dist_to_focus);
-
-
 
     std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
 

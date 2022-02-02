@@ -2,32 +2,37 @@
 using StaticArrays
 using LinearAlgebra
 
+global ray_count = 0
 
-const Vec3 = SVector{3}
-const Point3 = SVector{3}
+const Vec3 = SArray{Tuple{3}, Float64, 1, 3}
+const Point3 = SArray{Tuple{3}, Float64, 1, 3}
+const Color = SArray{Tuple{3}, Float64, 1, 3}
+import Base.zero
+zero(::Type{Point3}) = Point3(0,0,0)
+zero(::Type{Color}) = Color(0,0,0)
 
-magnitude(v::Vec3) = sqrt(v.x^2 + v.y^2 + v.z^2)
+magnitude(x,y) = sqrt(x^2 + y^2)
+magnitude(x,y,z) = sqrt(x^2 + y^2 + z^2)
+magnitude(v::Vec3) = magnitude(v...)
+
 unit_vector(v::Vec3) = v / magnitude(v)
 
 near_zero(v) = v.x < 1e-8 && v.y < 1e-8 && v.z < 1e-8
 
-
 function random_in_unit_disk() 
-	newv() = Vec3(randf(-1, 1), randf(-1, 1), 0)
-	v = newv()
-	while magnitude(v)^2 >= 1
-        	v = newv()
+	x,y = randf(-1, 1), randf(-1, 1)
+	while magnitude(x,y)^2 >= 1
+     	x,y = randf(-1, 1), randf(-1, 1)
 	end
-        v
+	x,y
 end
 
 function random_in_unit_sphere() 
-	newv() = Vec3(randf(-1,1), randf(-1,1), randf(-1,1))
-	v = newv()
-	while magnitude(v)^2 >= 1
-		v = newv()
+	x,y,z = randf(-1,1), randf(-1,1), randf(-1,1)
+	while magnitude(x,y,z)^2 >= 1
+		x,y,z = randf(-1,1), randf(-1,1), randf(-1,1)
 	end
-	v
+	Point3(x,y,z)
 end
 
 random_unit_vector() = unit_vector(random_in_unit_sphere())
@@ -49,43 +54,42 @@ end
 struct Ray
 	origin::Point3
 	direction::Vec3
+	udirection::Vec3
 	tm::Float64
-	Ray(o, d, m) = new(o, d, m)
+	Ray(o, d, m) = new(o, d, unit_vector(d), m)
 	Ray(o, d) = Ray(o, d, 0)
+	Ray() = new(Vec3(Inf, Inf, Inf), Vec3(Inf, Inf, Inf))
 end
-
 
 at(r::Ray, t) = r.origin + t * r.direction
 
 struct Camera
-        origin::Point3
-        lower_left_corner::Point3
-        horizontal::Vec3
-        vertical::Vec3
+	origin::Point3
+	lower_left_corner::Point3
+	horizontal::Vec3
+	vertical::Vec3
 	u::Vec3
 	v::Vec3
 	w::Vec3
-        lens_radius::Float64
+	lens_radius::Float64
 	time0::Float64
 	time1::Float64
 	function Camera(lookfrom, lookat, vup, vfov, aspect_ratio, aperture, focus_dist, _time0=0, _time1=0)
-            theta = deg2rad(vfov)
-            h = tan(theta/2)
-            viewport_height = 2.0 * h
-            viewport_width = aspect_ratio * viewport_height
+		viewport_height = 2.0 * tan(deg2rad(vfov)/2)
+		viewport_width = aspect_ratio * viewport_height
 
-            w = unit_vector(lookfrom - lookat)
-            u = unit_vector(cross(vup, w))
-            v = cross(w, u)
+		w = unit_vector(lookfrom - lookat)
+		u = unit_vector(cross(vup, w))
+		v = cross(w, u)
 
-            origin = lookfrom
-            horizontal = focus_dist * viewport_width * u
-            vertical = focus_dist * viewport_height * v
-            lower_left_corner = origin - horizontal/2 - vertical/2 - focus_dist*w
+		origin = lookfrom
+		horizontal = focus_dist * viewport_width * u
+		vertical = focus_dist * viewport_height * v
+		lower_left_corner = origin - horizontal/2 - vertical/2 - focus_dist*w
 
-            lens_radius = aperture / 2
-            time0 = _time0
-            time1 = _time1
+		lens_radius = aperture / 2
+		time0 = _time0
+		time1 = _time1
 		new(origin, lower_left_corner, horizontal, vertical, u, v, w, lens_radius, time0, time1)
 	end
 	Camera() = Camera(Point3(0,0,-1), Point3(0,0,0), Vec3(0,1,0), 40, 1, 0, 10)
@@ -105,36 +109,29 @@ randf(fmin, fmax) = fmin + (fmax-fmin)*rand()
 get_ray(scene::Scene, s, t) = get_ray(scene.camera, s, t)
 
 function get_ray(cam::Camera, s, t)
-	rd = cam.lens_radius * random_in_unit_disk()
-	offset = cam.u * rd.x + cam.v * rd.y
+	x,y = cam.lens_radius .* random_in_unit_disk()
+	offset = cam.u * x + cam.v *y
 	Ray(cam.origin + offset, cam.lower_left_corner + s*cam.horizontal + t*cam.vertical - cam.origin - offset, randf(cam.time0, cam.time1))
 end
 
-struct Color
-	rgb::Point3
-	Color(r,g,b) = new(Point3(r,g,b))
-	Color(n) = Color(n,n,n)
-	Color() = Color(rand(), rand(), rand())
-end
-
+#==
 import Base.+
 +(c1::Color, c2::Color) = Color(c1.rgb[1]+c2.rgb[1], c1.rgb[2]+c2.rgb[2], c1.rgb[3]+c2.rgb[3])
 
 import Base.*
-*(f::Float64, c::Color) = Color(f*c.rgb[1], f+c.rgb[2], f*c.rgb[3])
+*(f::Float64, c::Color) = Color(f*c.rgb[1], f*c.rgb[2], f*c.rgb[3])
 *(c1::Color, c2::Color) = Color(c1.rgb[1]*c2.rgb[1], c1.rgb[2]*c2.rgb[2], c1.rgb[3]*c2.rgb[3])
 
 import Base./
 /(c::Color, f) = Color(c.rgb[1]/f, c.rgb[2]/f, c.rgb[3]/f)
-
+==#
 
 clamp(f, b, t) = f < b ? b : f > t ? t : f
 
 function write(io::IO, c::Color)
-	val(rgb) = round(Int, 256clamp(sqrt(rgb), 0, 1))
-	println(io, "$(val(c.rgb[1])) $(val(c.rgb[2])) $(val(c.rgb[3]))")
+	val(rgb) = round(Int, 255clamp(sqrt(rgb), 0, 1))
+	println(io, "$(val(c[1])) $(val(c[2])) $(val(c[3]))")
 end
-
 
 struct Hit 
 	p::Point3
@@ -147,15 +144,16 @@ struct Hit
 		norm = ff < 0 ? outward_normal : -outward_normal
 		new(p, norm, material, t, ff < 0)
 	end
+	Hit() = new()
 end
 
 function trace(scene::Scene, ray::Ray, t_min, t_max)
 	closest_t = t_max
-	nearest = nothing
+	nearest = Hit()
 	
 	for hitable in scene.hitables
 		hit = trace(hitable, ray, t_min, closest_t)
-		if hit !== nothing
+		if isdefined(hit, :material)
 			closest_t = hit.t
 			nearest = hit
 		end
@@ -187,9 +185,9 @@ struct Metal <: Material
 end
 
 function scatter(m::Metal, ray::Ray, hit::Hit)
-	reflected = reflect(unit_vector(ray.direction), hit.normal)
+	reflected = reflect(ray.udirection, hit.normal)
         scattered = Ray(hit.p, reflected + m.fuzz * random_in_unit_sphere())
-	dot(scattered.direction, hit.normal) > 0 ? (scattered, m.albedo) : nothing
+	dot(scattered.direction, hit.normal) > 0 ? (scattered, m.albedo) : (Ray(), zero(Color))
 end
 
 struct Dielectric <: Material
@@ -204,17 +202,16 @@ end
 function scatter(d::Dielectric, ray::Ray, hit::Hit) 
 	refraction_ratio = hit.front_face ? (1.0/d.ir) : d.ir
 
-	unit_direction = unit_vector(ray.direction)
-	cos_theta = min(dot(-unit_direction, hit.normal), 1.0)
+	cos_theta = min(dot(-ray.udirection, hit.normal), 1.0)
 	sin_theta = sqrt(1.0 - cos_theta^2)
 	cannot_refract = refraction_ratio * sin_theta > 1.0
 	direction = if cannot_refract || reflectance(cos_theta, refraction_ratio) > rand()
-			reflect(unit_direction, hit.normal)
+			reflect(ray.udirection, hit.normal)
 		else
-			refract(unit_direction, hit.normal, refraction_ratio)
+			refract(ray.udirection, hit.normal, refraction_ratio)
 		end
 
-	Ray(hit.p, direction), Color(1)
+	Ray(hit.p, direction), Color(1,1,1)
 end
 
 abstract type Hitable end
@@ -225,7 +222,6 @@ struct Sphere <: Hitable
 	material::Material
 end
 
-
 function trace(sphere::Sphere, ray::Ray, t_min, t_max)
 	oc = ray.origin - sphere.center
 	a = magnitude(ray.direction)^2
@@ -233,7 +229,7 @@ function trace(sphere::Sphere, ray::Ray, t_min, t_max)
 	c = magnitude(oc)^2 - sphere.radius^2
 	discriminant = half_b^2 - a*c
 	if discriminant < 0
-		return
+		return Hit()
 	end
 
 	sqrtd = sqrt(discriminant)
@@ -241,7 +237,7 @@ function trace(sphere::Sphere, ray::Ray, t_min, t_max)
 	if root < t_min || t_max < root
 		root = (-half_b + sqrtd) / a
 		if root < t_min || t_max < root
-			return 
+			return Hit()
 		end
 	end
 
@@ -250,37 +246,37 @@ function trace(sphere::Sphere, ray::Ray, t_min, t_max)
 	Hit(p, root, ray, (p - sphere.center) / sphere.radius, sphere.material)
 end
 
-
-function ray_color(scene::Scene, ray::Ray, depth) 
+function ray_color(scene::Scene, ray::Ray, depth)::Tuple{Float64, Float64, Float64}
 	if depth <= 0
-        	return zero(Color)
+        	return 0,0,0
 	end
 
 	hit = trace(scene, ray, 0.001, Inf)
-	if hit !== nothing
-		sa = scatter(hit.material, ray, hit)
-		if sa === nothing
-			return zero(Color)
+	if isdefined(hit, :material)
+		s, a = scatter(hit.material, ray, hit)
+		if s.origin.x == Inf
+			return 0,0,0
 		end
-		return sa[2] * ray_color(scene, sa[1], depth-1)
+		r,g,b = ray_color(scene, s, depth-1)
+		return a[1] * r, a[2] * g, a[3] * b
 	end
 
-	unit_direction = unit_vector(ray.direction)
-	t = 0.5*(unit_direction.y + 1.0)
-	(1.0-t)*Color(1) + t*Color(0.5, 0.7, 1.0)
+	t::Float64 = 0.5*(ray.udirection.y + 1.0)
+	t1m = 1.0 - t
+	t1m + 0.5t, t1m + 0.7t, t1m + t
 end
 
 add!(s::Scene, h::Hitable) = push!(s.hitables, h)
 
-
 function add_random_scene!(scene::Scene) 
 
-	add!(scene, Sphere(Point3(0,-1000,0), 1000, Lambertian(Color(0.5))))
+	add!(scene, Sphere(Point3(0,-1000,0), 1000, Lambertian(Color(0.5, 0.5, 0.5))))
 
 	rand_material(p) = if p < 0.8 
 				Lambertian()
 			elseif p < 0.95
-				Metal(Color(randf(0.5, 1)), 0.5rand())
+				rf = randf(0.5, 1)
+				Metal(Color(rf, rf, rf), 0.5rand())
 			else
 				Dielectric(1.5)
 			end
@@ -297,48 +293,59 @@ function add_random_scene!(scene::Scene)
 	add!(scene, Sphere(Point3(4, 1, 0), 1.0, Metal(Color(0.7,0.6,0.5), 0.0)))
 end
 
-zero(::Type{Point3}) = Point3(0,0,0)
-zero(::Type{Color}) = Color(0)
 
+const Scanline = Vector{Color}
 
-function main(io, image_width=1200, aspect_ratio=16.0/9.0)
+function trace_scanline(world, y, samples, width, height, max_depth)
+	scanline = Scanline(undef, width)
+	@simd for x in 1:width
+		r=g=b=0.0
+		for i in 1:samples
+			(r,g,b) = (r,g,b) .+ ray_color(world, get_ray(world, (x + rand()) / width, (y + rand()) / height), max_depth)
+		end
+		scanline[x] = Color(r/samples, g/samples, b/samples)
+	end
+	scanline
+end
+
+function write_ppm(io, scanlines, w, h)
+	println(io, "P3\n$w $h\n255")
+	foreach(scanline->foreach(p->write(io, p), scanline), scanlines[end:-1:1])
+end
+
+function main(io; image_width=1200, aspect_ratio=16/9, samples_per_pixel=10, max_depth=50)
 
 	image_height = round(Int, image_width / aspect_ratio)
-	samples_per_pixel = 10
-	max_depth = 50
 
-    	lookfrom = Point3(13.,2.,3.)
-	lookat = zero(Point3)
-
-
-	vup = Vec3(0,1,0)
-	dist_to_focus = 10.0
-	aperture = 0.1
-
-	world = Scene(Camera(lookfrom, lookat, vup, 20, aspect_ratio, aperture, dist_to_focus))
+	world = Scene(Camera(Point3(13.,2.,3.), zero(Point3), Vec3(0,1,0), 20, aspect_ratio, 0.1, 10.0))
 	add_random_scene!(world)
 
-	println(io, "P3\n$image_width $image_height\n255")
+	scanlines = Vector{Scanline}(undef, image_height)
 
-	for j in image_height-1:-1:0
+	Threads.@threads for y in 1:image_height
+		scanlines[y] = trace_scanline(world, y, samples_per_pixel, image_width, image_height, max_depth)
+    end
 
-		print(stderr, "\rScanlines remaining: $j   ")
-		flush(stderr)
-
-		for i in 0:image_width-1
-            		pixel_color = zero(Color)
-			for _ in 1:samples_per_pixel
-                		u = (i + rand()) / (image_width-1)
-                		v = (j + rand()) / (image_height-1)
-                		r = get_ray(world, u, v)
-                		pixel_color += ray_color(world, r, max_depth)
-			end
-            		write(io, pixel_color / samples_per_pixel)
-  		end
-       end
-
-	println(stderr, "Done")
+	write_ppm(io, scanlines, image_width, image_height)
 end
+
+function go()
+	open("r.ppm", "w") do io 
+		@time main(io, image_width=1200, samples_per_pixel=10)
+	end
+end
+
+function bmark()
+	# using BenchmarkTools
+	world = Scene(Camera(Point3(13.,2.,3.), zero(Point3), Vec3(0,1,0), 20, 16/9, 0.1, 10.0))
+	add_random_scene!(world)
+	#@benchmark trace_scanline(world, 400, 10, 1200, 800, 50) setup=(evals=3)
+end
+#==
+includet("main.jl")
+world = Scene(Camera(Point3(13.,2.,3.), zero(Point3), Vec3(0,1,0), 20, 16/9, 0.1, 10.0))
+@code_warntype ray_color(world, get_ray(world, 0.5, 0.5), 5)
+==#
 
 
 
